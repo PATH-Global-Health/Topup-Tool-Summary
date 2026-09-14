@@ -32,7 +32,7 @@ This version explains **every step of the pipeline and every function involved**
 
 ## 1. What This Program Is
 
-Two unattended scripts run automatically on the server and pay Zambian health workers a small amount of mobile airtime whenever they submit their malaria surveillance report, **and the amount they get depends on how promptly they reported.** The sooner after their reporting period closes that they submit, the more airtime they receive; the longer they wait, the less they get (down to a small token minimum); and if they never submit at all, they get nothing. Payments are calculated in ZMW (Zambian Kwacha) and also shown converted to USD for reporting. Before anything gets paid, the data goes through several validity and fraud checks (detailed in Section 3).
+Two unattended scripts run automatically on the server and generate a report of the payment amounts owed to Zambian health workers who submitted their malaria surveillance report, **with the amount owed depending on how promptly they reported.** The sooner after their reporting period closes that they submit, the more airtime they're due; the longer they wait, the less they're due (down to a small token minimum); and if they never submit at all, they're due nothing. Amounts are calculated in ZMW (Zambian Kwacha) and also shown converted to USD for reporting. Before anything is included in the report, the data goes through several validity and fraud checks (detailed in Section 3).
 
 | Job | Script | Schedule | Who it pays |
 |---|---|---|---|
@@ -54,10 +54,10 @@ MAILTO="root"
 
 A few things worth noting about these two lines:
 
-- **The timing checks out.** A crontab time is five fields: minute, hour, day-of-month, month, day-of-week. `1 0 * * 2` means minute 1, hour 0, any day-of-month, any month, weekday 2 (cron counts Sunday as 0, so 2 is Tuesday), i.e. 00:01 every Tuesday, exactly matching the weekly job in the table above. `0 4 10 * *` means minute 0, hour 4, day-of-month 10, any month, any weekday, i.e. 04:00 on the 10th of every month, exactly matching the Step D job. One subtlety: because that second rule is pinned to the calendar day (the 10th) rather than a weekday, it lands on a different day of the week each month.
-- **`/usr/bin/Rscript` is the command-line tool that runs an R file non-interactively**, the same way `python script.py` runs a Python file; it's how cron executes these `.R` scripts without anyone opening R by hand.
-- **The path matches everything else found in this review.** `/var/lib/dhis2/dhis/scripts/nmectools/` is the same production install location referenced inside the scripts themselves (`setwd("/var/lib/dhis2/dhis/scripts/nmectools")` at the top of both `exec/weekly_topup.R` and `exec/stepD_report.R`), and it sits right next to the `dish.json` credentials file described in Step 1 (`/var/lib/dhis2/dhis/dish.json`). Everything points at the same server-side deployment.
-- **`MAILTO="root"` is a separate, purely operational safety net, not a business report.** If either script crashes or prints an error to the console, cron itself (independent of anything the R code does) emails that raw output to the local `root` mailbox on the server, so a system administrator can see the job failed. This is different from, and in addition to, the payment-summary emails the scripts themselves send out via `sendWeeklyReportByEmail`/`sendStepDReportByEmail` (Steps A7/B7) to the DHIS2 user group's recipients; that "root" mailbox is local to the server, not the program staff's inboxes.
+- The schedule matches the table above: the weekly job fires every Tuesday at 00:01, and the Step D job fires at 04:00 on the 10th of each month.
+- `/usr/bin/Rscript` is just how cron runs an `.R` file automatically, without anyone opening R by hand.
+- The install path matches the rest of this review, and sits next to the `dish.json` credentials file from Step 1 — confirming this is the same production deployment.
+- `MAILTO="root"` only routes script *crash* errors to the server admin; it's unrelated to the payment-summary emails the scripts send to program staff.
 
 ---
 
