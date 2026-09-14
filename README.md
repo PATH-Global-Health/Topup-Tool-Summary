@@ -134,6 +134,16 @@ createReportInfo <- function(report_date) {
 **Function:** `getWeeklyRawData(report_date, d2_session)` (in `R/prepareWeeklyTopupData.R`)
 **SQL behind it:** `inst/sql/topup_raw_data.sql`
 
+This query is pre-saved inside DHIS2 itself (as a "SQL View," identified by a fixed ID, `PaIP00gzoyN`) by whoever configured the system. The `.sql` file below is just a local copy kept in this repo so a person can read what that saved query does.
+
+Here's the full round trip:
+1. This whole SQL query already lives inside DHIS2, saved under the ID `PaIP00gzoyN`, before the R script ever runs.
+2. At runtime, the R script builds one plain URL — see `R/prepareWeeklyTopupData.R`, lines 12–17 — by gluing together the server address, the fixed text `api/sqlViews/PaIP00gzoyN/data.csv?var=reportExDate:`, and the report date, e.g.:
+   `https://<server>/api/sqlViews/PaIP00gzoyN/data.csv?var=reportExDate:2026-09-14`
+3. R sends that URL as a normal web request (`httr::GET(...)`, line 20 of the same file), passing the report date along as part of it.
+4. DHIS2 receives the request, looks up the query already saved under `PaIP00gzoyN`, substitutes the date into its own stored copy, runs the finished query against its own database, and sends the results back as a CSV file.
+5. R reads that CSV result and continues processing it.
+
 In plain English, this database question means: *"Look at the official 'report completed' log for the Weekly Rapid Reporting dataset. Find every facility/week combination where a completion was recorded in the last 7 days, but only if that facility/week hadn't already been marked complete before this most-recent 7-day window. Tell me the facility name and ID, which week it was for, when that week started, how many days ago that was (the 'period age'), and exactly when it was submitted."*
 
 The "only if it hadn't already been marked complete before" part is a deliberate safeguard baked directly into the database question (not just the R code), so that a facility's submission for a given week is only ever picked up **once**, in the week it actually happened, and can't accidentally be re-counted (and re-paid) in a later week's run.
@@ -179,7 +189,7 @@ ORDER BY ou.name, ps.iso DESC
 ```
 </details>
 
-This question is sent to DHIS2 as a web request (an "API call"), and DHIS2 sends back the answer as a spreadsheet-style file (CSV) that R then reads and processes:
+R doesn't send the SQL above — it sends a short web request (an "API call") that just names the saved query by its ID and passes in the date. DHIS2 runs its own stored copy of the query and sends back the answer as a spreadsheet-style file (CSV) that R then reads and processes:
 
 <details>
 <summary>Click to see the actual R code</summary>
@@ -344,6 +354,8 @@ This pipeline pays two separate groups from the same monthly dataset: **facility
 #### Step B1: Ask the database, "who completed the monthly Step D report, and was the data actually filled in properly?"
 **Function:** `getStepDTopUpData(report_date, d2_session)` (in `R/getTopupData.R`)
 **SQL behind it:** `inst/sql/stepd_raw_data.sql`
+
+As with Step A1, the R code does not send this SQL anywhere — it's a query already saved inside DHIS2 (a "SQL View" with its own fixed ID) that R triggers with a short web request and a date; the `.sql` file is just a local copy for reference.
 
 In plain English: *"For the 'Step D Monthly CHW' dataset, find every facility/month where a completion was recorded in the last month, along with who recorded it. Also tell me the very first time that facility/month was ever completed (for history). Also count how many of the 9 specific mandatory fields actually have a value filled in for that facility/month. Tell me how many days ago it was submitted, and how many days ago the reporting month itself ended."*
 
