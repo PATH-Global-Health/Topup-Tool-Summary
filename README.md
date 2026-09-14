@@ -102,6 +102,8 @@ loginToDHIS2 <- function(config_path = NULL, ...) {
 ```
 </details>
 
+**Which date the report runs for:** right after logging in, each script decides what date to treat as "today" for the report. If someone runs the script by hand and types in a specific date (used for testing or re-running a date that was missed), it uses that date instead. Otherwise — which is what happens every time the script runs on its automatic schedule — it just uses the actual current date.
+
 ### Step 2: Set up the report's basic info
 **Function:** `createReportInfo(report_date)` (in `R/createReportInfo.R`)
 
