@@ -7,8 +7,6 @@
 - Before anything is paid, every report is checked for a valid/real phone number, a genuine active account, no duplicate or backdated submissions, and complete data.
 - Anything that fails those checks isn't silently dropped; it's routed into a "for review" file that goes to program staff every cycle.
 
-**Source:** `nmectools` R package (DHIS2 production scripts, `dhis_co_zm_prod` server)
-
 This version explains **every step of the pipeline and every function involved**, in plain language first, with the actual code and database queries included underneath for anyone technical who wants to verify. No prior knowledge of R (the programming language used) or SQL (the database query language used) is assumed; each is explained as it comes up. Code and SQL snippets are collapsed by default; click any "Click to see..." line to expand it if you want to check the details yourself. The anti-gaming/anti-theft rules are covered in their own section at the end, after the full pipeline, since most of them are individual steps *inside* that pipeline.
 
 ---
@@ -56,7 +54,7 @@ A few things worth noting about these two lines:
 
 - The schedule matches the table above: the weekly job fires every Tuesday at 00:01, and the Step D job fires at 04:00 on the 10th of each month.
 - `/usr/bin/Rscript` is just how cron runs an `.R` file automatically, without anyone opening R by hand.
-- The install path matches the rest of this review, and sits next to the `dish.json` credentials file from Step 1 — confirming this is the same production deployment.
+- The install path sits next to the `dish.json` credentials file from Step 1.
 - `MAILTO="root"` only routes script *crash* errors to the server admin; it's unrelated to the payment-summary emails the scripts send to program staff.
 
 ---
@@ -70,7 +68,7 @@ Both jobs follow the same overall shape: **log in, ask the database a question, 
 
 Before the script can ask DHIS2 for anything, it has to authenticate, the same way you'd log into a website with a username and password, except here the credentials are read from a small configuration file on the server rather than typed by a person. This function is a thin wrapper around a login routine from a separate, shared library (`datimutils`) that the wider DHIS2/PEPFAR-Zambia ecosystem uses.
 
-**Where the credentials actually live:** both cron jobs call this function with the same fixed path on the production server:
+**Where the credentials actually live:** both cron jobs call this function with the same fixed path:
 
 ```r
 loginToDHIS2("/var/lib/dhis2/dhis/dish.json")
@@ -90,7 +88,7 @@ loginToDHIS2("/var/lib/dhis2/dhis/dish.json")
 }
 ```
 
-(That's the standard shape this convention expects, not a copy of the real file; the actual `dish.json` on the server was not read as part of this review.) `loginToDATIM()` parses the JSON, pulls out the `"dhis"` section, and uses those three values to authenticate to the DHIS2 server's API, the same login step a person would go through in a browser, just done in code with a stored service account instead of a human typing a password.
+(That's the standard shape this convention expects, not a copy of the real file.) `loginToDATIM()` parses the JSON, pulls out the `"dhis"` section, and uses those three values to authenticate to the DHIS2 server's API, the same login step a person would go through in a browser, just done in code with a stored service account instead of a human typing a password.
 
 **What happens after login:** a successful login produces a "session" object, an internal record holding the authenticated connection (`handle`) and the server's `base_url`, which `loginToDHIS2()` stores in the calling script's environment under the name `d2_default_session`. Every other function used later in the pipeline (`getWeeklyRawData`, `getRapidReportUsers`, `getOrgUnitStructure`, `sendWeeklyReportByEmail`, and so on) takes that same object in as its `d2_session` argument and reuses it for its own DHIS2 API calls, for example `d2_session$base_url` and `d2_session$handle` in Step A1 below. So the login happens exactly once, right at the start of each run, and its result is threaded through everything that follows.
 
@@ -683,4 +681,4 @@ Every single run exports the full set of rejected/flagged records (bad phone num
 
 ## 5. Summary
 
-Health workers are paid airtime **only when they submit a report**, and **more the sooner they submit it** after their reporting period closes; someone who never reports is never paid, and someone who reports very late still gets a small token payment rather than nothing, to keep incentivizing eventual data completeness. Before any payment is calculated, every report passes through a chain of validity and anti-fraud checks: a database-level guard against paying the same submission twice, an application-level de-duplication step, phone-number/network validation, blocking of reports for periods that haven't closed yet or are backdated, a completeness check on the underlying data, valid-period-format checks, and identity/hierarchy checks that tie Data CHW payments to real, currently active front-line accounts. Anything rejected by these checks is routed into a "for review" file rather than silently dropped, giving program staff a standing audit trail every cycle. One known gap identified during this review: the system currently detects, but does not yet automatically block, a mismatch between the officially registered reporter and whoever actually submitted a report; a candidate rule to harden if this logic is reused elsewhere.
+Health workers are paid airtime **only when they submit a report**, and **more the sooner they submit it** after their reporting period closes; someone who never reports is never paid, and someone who reports very late still gets a small token payment rather than nothing, to keep incentivizing eventual data completeness. Before any payment is calculated, every report passes through a chain of validity and anti-fraud checks: a database-level guard against paying the same submission twice, an application-level de-duplication step, phone-number/network validation, blocking of reports for periods that haven't closed yet or are backdated, a completeness check on the underlying data, valid-period-format checks, and identity/hierarchy checks that tie Data CHW payments to real, currently active front-line accounts. Anything rejected by these checks is routed into a "for review" file rather than silently dropped, giving program staff a standing audit trail every cycle. One known gap: the system currently detects, but does not yet automatically block, a mismatch between the officially registered reporter and whoever actually submitted a report; a candidate rule to harden if this logic is reused elsewhere.
